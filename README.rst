@@ -21,27 +21,41 @@ Installation
 - 3. Add the app "japi" into your settings.py
 
     INSTALLED_APPS = (
+
         ...
+
         'japi',
+
     )
+
 
 
 - 4. Add the middleware authentication in settings.py
 
     MIDDLEWARE_CLASSES = (
+
         ...
+
         'japi.middleware.ApiAuth',
+
     )
+
 
 
 - 5. Add the urls of the app "japi" into your urls.py
 
     import japi
+
     japi.autodiscover()
+
     urlpatterns = patterns('',
+
         ...
+
         (r'^api/', include(japi.site.urls)),
+
     )
+
 
 
 Configuration
@@ -50,20 +64,29 @@ Configuration
 - 1. Create a file api.py into the you app, and register you model in the JApi.
 
     import japi
+
     from japi.options import ModelApi
+
     from models import Model1, Model2
 
 
     class Model1ModelApi(ModelApi):
+
         version = 'v1'
+
         fields = ('name', )
+
         exclude = ()
+
         order_by = ()
+
         list_per_page = 100
         
 
     japi.site.register(Model1, Model1ModelApi)
+
     japi.site.register(Model2)
+
 
 
 - 2. I can override, in ModelApi?
@@ -71,24 +94,38 @@ Configuration
     - 2.1. Atributes:
 
         fields = None
+
         exclude = []
+
         form = forms.ModelForm
+
         order_by = []
+
         list_per_page = 100
+
         version = 'v1'
 
 
     - 2.2. Methods
 
     def formfield_for_choice_field(self, db_field, request=None, **kwargs):
+
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
+
     def formfield_for_manytomany(self, db_field, request=None, **kwargs):
+
     def queryset(self, request):
+
     def changelist_view(self, request, extra_context=None):
+
     def class_view(self, request, extra_context=None):
+
     def add_view(self, request, extra_context=None):
+
     def change_view(self, request, object_id, extra_context=None):
+
     def delete_view(self, request, object_id, extra_context=None):
+    
 
 
 Usage
