@@ -1,0 +1,6 @@
+*.pyc
+*.sqlite
+*.DS_Store
+/media
+/nbproject/private/
+/local_settings.py
