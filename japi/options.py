@@ -317,13 +317,22 @@ class ModelApi(object):
                 raise PermissionDenied
 
             ModelForm = self.get_form(request)
-            if request.method == 'GET':
-                form = ModelForm(request.GET, request.FILES)
+            if request.method == 'POST':
+                form = ModelForm(request.POST, request.FILES)
                 if form.is_valid():
                     new_object = self.save_form(request, form, change=False)
                     self.save_model(request, new_object, form, change=False)
                     self.log_addition(request, new_object)
-                    json = simplejson.loads(serializers.serialize('json', [new_object, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
+
+                    json = {}
+                    json['queryset'] = []
+                    for query in [new_object, ]:
+                        new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
+                        for field in self.get_fields(request):
+                            if "instancemethod" in str(type(getattr(query, field))):
+                                func = getattr(query, field)
+                                new_json['fields'][field] = func()
+                        json['queryset'].append(new_json)
                 else:
                     raise SaveModelError(dict(form.errors))
             else:
@@ -356,7 +365,16 @@ class ModelApi(object):
                     self.save_model(request, obj, form, change=False)
                     change_message = self.construct_change_message(request, form)
                     self.log_change(request, obj, change_message)
-                    json = simplejson.loads(serializers.serialize('json', [obj, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
+
+                    json = {}
+                    json['queryset'] = []
+                    for query in [obj, ]:
+                        new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
+                        for field in self.get_fields(request):
+                            if "instancemethod" in str(type(getattr(query, field))):
+                                func = getattr(query, field)
+                                new_json['fields'][field] = func()
+                        json['queryset'].append(new_json)
                 else:
                     raise SaveModelError(dict(form.errors))
             else:
