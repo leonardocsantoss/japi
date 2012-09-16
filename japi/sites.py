@@ -175,7 +175,7 @@ class ApiSite(object):
                             }
             else:
                 json['auth'] = {
-                    'url': '%s/api/%s/' % (get_host(request), self.version),
+                    'url': '%s/api/%s/auth/' % (get_host(request), self.version),
                     'method': ['GET', 'POST'],
                     'required': ['username', 'passowrd'],
                     'return': "japi.usertoken",

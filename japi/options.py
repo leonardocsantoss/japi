@@ -217,7 +217,10 @@ class ModelApi(object):
         return change_message or _('No fields changed.')
 
     def save_form(self, request, form, change):
-        return form.save()
+        return form.save(commit=False)
+
+    def save_model(self, request, obj, form, change):
+        obj.save()
 
     def delete_model(self, request, obj):
         obj.delete()
@@ -243,11 +246,12 @@ class ModelApi(object):
             json['page'] = page
             json['list_per_page'] = list_per_page
 
-            if request.GET.get('page'):
-                next_page = request.build_absolute_uri().replace('page=%s' % page, 'page=%s' % (page+1))
-            else:
-                next_page = "%s%s" % (request.build_absolute_uri(), '&page=2')
-            json['next_page'] = next_page
+            if json['count_queryset'] > (json['count_page']*json['page']):
+                if request.GET.get('page'):
+                    next_page = request.build_absolute_uri().replace('page=%s' % page, 'page=%s' % (page+1))
+                else:
+                    next_page = "%s%s" % (request.build_absolute_uri(), '&page=2')
+                json['next_page'] = next_page
             
             json['queryset'] = []
             for query in queryset:
@@ -285,15 +289,15 @@ class ModelApi(object):
                 if field_object.null: attrs['null'] = field_object.null
 
                 if field_object.choices:
-                    attrs['choices'] = list(self.formfield_for_choice_field(field_object).choices)
+                    attrs['choices'] = list(self.formfield_for_choice_field(field_object, request).choices)
 
                 if type(field_object).__name__ == 'ManyToManyField':
                     attrs['model'] = "%s.%s" % (field_object.related.parent_model._meta.app_label, field_object.related.parent_model._meta.module_name)
-                    attrs['choices'] = list(self.formfield_for_manytomany(field_object).choices)
+                    attrs['choices'] = list(self.formfield_for_manytomany(field_object, request).choices)
 
                 if type(field_object).__name__ == 'ForeignKey':
                     attrs['model'] = "%s.%s" % (field_object.related.parent_model._meta.app_label, field_object.related.parent_model._meta.module_name)
-                    attrs['choices'] = list(self.formfield_for_foreignkey(field_object).choices)
+                    attrs['choices'] = list(self.formfield_for_foreignkey(field_object, request).choices)
 
                 json['fields'][field] = attrs
 
@@ -313,10 +317,11 @@ class ModelApi(object):
                 raise PermissionDenied
 
             ModelForm = self.get_form(request)
-            if request.method == 'POST':
-                form = ModelForm(request.POST, request.FILES)
+            if request.method == 'GET':
+                form = ModelForm(request.GET, request.FILES)
                 if form.is_valid():
-                    new_object = save_form(request, form, change=False)
+                    new_object = self.save_form(request, form, change=False)
+                    self.save_model(request, new_object, form, change=False)
                     self.log_addition(request, new_object)
                     json = simplejson.loads(serializers.serialize('json', [new_object, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
                 else:
@@ -347,7 +352,8 @@ class ModelApi(object):
             if request.method == 'POST':
                 form = ModelForm(dict(model_to_dict(obj).items()+request.POST.items()), request.FILES, instance=obj)
                 if form.is_valid():
-                    obj = save_form(request, form, change=True)
+                    obj = self.save_form(request, form, change=True)
+                    self.save_model(request, obj, form, change=False)
                     change_message = self.construct_change_message(request, form)
                     self.log_change(request, obj, change_message)
                     json = simplejson.loads(serializers.serialize('json', [obj, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))

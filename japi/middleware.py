@@ -32,7 +32,6 @@ class ApiAuth(object):
                 usertoken.date_created = datetime.now()
                 usertoken.save()
                 request.__class__.user = usertoken.user
-                print request
                 
         except Exception as error:
             json = {

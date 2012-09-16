@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from japi.sites import site
+from japi.sites import ApiSite, site
+from japi.sites import ModelApi
 
 
 def autodiscover():
