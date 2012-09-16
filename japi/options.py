@@ -215,7 +215,13 @@ class ModelApi(object):
             change_message.append(_('Changed %s.') % get_text_list(form.changed_data, _('and')))
         change_message = ' '.join(change_message)
         return change_message or _('No fields changed.')
-    
+
+    def save_form(self, request, form, change):
+        return form.save()
+
+    def delete_model(self, request, obj):
+        obj.delete()
+
     def changelist_view(self, request, extra_context=None):
         try:
             json = {}
@@ -310,7 +316,7 @@ class ModelApi(object):
             if request.method == 'POST':
                 form = ModelForm(request.POST, request.FILES)
                 if form.is_valid():
-                    new_object = form.save()
+                    new_object = save_form(request, form, change=False)
                     self.log_addition(request, new_object)
                     json = simplejson.loads(serializers.serialize('json', [new_object, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
                 else:
@@ -341,7 +347,7 @@ class ModelApi(object):
             if request.method == 'POST':
                 form = ModelForm(dict(model_to_dict(obj).items()+request.POST.items()), request.FILES, instance=obj)
                 if form.is_valid():
-                    obj = form.save()
+                    obj = save_form(request, form, change=True)
                     change_message = self.construct_change_message(request, form)
                     self.log_change(request, obj, change_message)
                     json = simplejson.loads(serializers.serialize('json', [obj, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
@@ -382,7 +388,7 @@ class ModelApi(object):
                 raise PermissionDenied
             obj_display = force_unicode(obj)
             self.log_deletion(request, obj, obj_display)
-            obj.delete()
+            self.delete_model(request, obj)
 
             if perms_needed or protected:
                 raise PermissionDenied("Cannot delete '%(name)s' with primary key %(key)r.") % {"name": object_name, "key": escape(object_id)}

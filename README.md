@@ -78,6 +78,8 @@ Django application for providing JSON API, based on the Django admin interface.
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
     def formfield_for_manytomany(self, db_field, request=None, **kwargs):
     def queryset(self, request):
+    def save_form(self, request, form, change):
+    def delete_model(self, request, obj):
     def changelist_view(self, request, extra_context=None):
     def class_view(self, request, extra_context=None):
     def add_view(self, request, extra_context=None):
