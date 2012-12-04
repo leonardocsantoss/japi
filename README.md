@@ -50,7 +50,6 @@ Django application for providing JSON API, based on the Django admin interface.
     from models import Model1, Model2
     
     class Model1ModelApi(ModelApi):
-    	version = 'v1'
     	fields = ('name', )
     	exclude = ()
     	order_by = ()
@@ -69,7 +68,6 @@ Django application for providing JSON API, based on the Django admin interface.
     form = forms.ModelForm
     order_by = []
     list_per_page = 100
-    version = 'v1'
 
 
 2.2- Methods:
@@ -93,28 +91,28 @@ Django application for providing JSON API, based on the Django admin interface.
 
 1- For you autenticate, send username and password variable using GET or POST message to:
 
-    /api/v1/auth/
+    /api/auth/
     
     This is return a JSON, containing the token variable. You use the token variable into GET of all requests.
 
 
 2- Get class JSON. You can see a class atributes. Use a GET request to:
 	
-    /api/VERSION_API/APP_NAME/MODEL_NAME/class/
+    /api/APP_NAME/MODEL_NAME/class/
     
-    Ex.: http://127.0.0.1:8000/api/v1/my_app/model1/class/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P
+    Ex.: http://127.0.0.1:8000/api/my_app/model1/class/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P
 
 
 3- Get the list JSON. Use a GET request to:
 
-    /api/VERSION_API/APP_NAME/MODEL_NAME/
+    /api/APP_NAME/MODEL_NAME/
     
-    Ex.: http://127.0.0.1:8000/api/v1/my_app/model1/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P
+    Ex.: http://127.0.0.1:8000/api/my_app/model1/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P
 
 
 3.1- You can make some queries, passing them GET.
 
-    Ex.: http://127.0.0.1:8000/api/v1/my_app/model1/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P&name=Leonardo
+    Ex.: http://127.0.0.1:8000/api/my_app/model1/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P&name=Leonardo
 
 
 3.2- You can also set the number of paging models (list_per_page), order(order_by), the page(page) or fields(fields)
@@ -122,12 +120,12 @@ Django application for providing JSON API, based on the Django admin interface.
 
 4- Add model. You send a POST request containing all atributes to:
 
-    /api/VERSION_API/APP_NAME/MODEL_NAME/add/
+    /api/APP_NAME/MODEL_NAME/add/
 
 
 5- Edit model. You send a POST request containing the attributes you can change to:
 
-    /api/VERSION_API/APP_NAME/MODEL_NAME/OBJECT_ID/
+    /api/APP_NAME/MODEL_NAME/OBJECT_ID/
 
 
 6- Delete model. You send a GET request to:

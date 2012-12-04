@@ -27,10 +27,9 @@ class NotRegistered(Exception):
 
 class ApiSite(object):
 
-    def __init__(self, name='api', app_name='api', version='v1'):
+    def __init__(self, name='api', app_name='api'):
         self._registry = {} # model_class class -> admin_class instance
         self.name = name
-        self.version = version
         self.app_name = app_name
         
 
@@ -91,14 +90,14 @@ class ApiSite(object):
 
         # Api-site-wide views.
         urlpatterns = patterns('',
-            url(r'^%s/auth/$' % self.version, wrap(self.auth), name='api_auth'),
-            url(r'^%s/$' % self.version, wrap(self.docs), name='api_docs'),
+            url(r'^auth/$', wrap(self.auth), name='api_auth'),
+            url(r'^$', wrap(self.docs), name='api_docs'),
         )
 
         # Add in each model's views.
         for model, model_admin in self._registry.iteritems():
             urlpatterns += patterns('',
-                url(r'^%s/%s/%s/' % (model_admin.version, model._meta.app_label, model._meta.module_name),
+                url(r'^%s/%s/' % (model._meta.app_label, model._meta.module_name),
                     include(model_admin.urls))
             )
         return urlpatterns
@@ -140,42 +139,42 @@ class ApiSite(object):
                     if self.has_add_permission(request, opts) or self.has_change_permission(request, opts) or self.has_delete_permission(request, opts):
                         json[model_name] = {}
                         json[model_name]['class'] = {
-                            'url': '%s/api/%s/%s/%s/class/' % (get_host(request), self.version, opts.app_label, opts.module_name),
+                            'url': '%s/api/%s/%s/class/' % (get_host(request), opts.app_label, opts.module_name),
                             'method': ['GET'],
                             'require': ['token', ],
                             'return': model_name,
                         }
                         if self.has_add_permission(request, opts):
                             json[model_name]['add'] = {
-                                'url': '%s/api/%s/%s/%s/add/' % (get_host(request), self.version, opts.app_label, opts.module_name),
+                                'url': '%s/api/%s/%s/add/' % (get_host(request), opts.app_label, opts.module_name),
                                 'method': ['POST'],
                                 'require': ['token', ],
                                 'return': model_name,
                             }
                         if self.has_change_permission(request, opts):
                             json[model_name]['change'] = {
-                                'url': '%s/api/%s/%s/%s/OBJECT_ID/' % (get_host(request), self.version, opts.app_label, opts.module_name),
+                                'url': '%s/api/%s/%s/OBJECT_ID/' % (get_host(request), opts.app_label, opts.module_name),
                                 'method': ['POST'],
                                 'require': ['token', ],
                                 'return': model_name,
                             }
                         if self.has_delete_permission(request, opts):
                             json[model_name]['delete'] = {
-                                'url': '%s/api/%s/%s/%s/OBJECT_ID/delete/' % (get_host(request), self.version, opts.app_label, opts.module_name),
+                                'url': '%s/api/%s/%sOBJECT_ID/delete/' % (get_host(request), opts.app_label, opts.module_name),
                                 'method': ['GET', 'POST'],
                                 'require': ['token', ],
                                 'return': 'message',
                             }
                         if self.has_change_permission(request, opts):
                             json[model_name]['list'] = {
-                                'url': '%s/api/%s/%s/%s/' % (get_host(request), self.version, opts.app_label, opts.module_name),
+                                'url': '%s/api/%s/%s/' % (get_host(request), opts.app_label, opts.module_name),
                                 'method': ['GET'],
                                 'require': ['token', ],
                                 'return': model_name,
                             }
             else:
                 json['auth'] = {
-                    'url': '%s/api/%s/auth/' % (get_host(request), self.version),
+                    'url': '%s/api/auth/' % (get_host(request)),
                     'method': ['GET', 'POST'],
                     'required': ['username', 'passowrd'],
                     'return': "japi.usertoken",

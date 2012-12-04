@@ -11,6 +11,7 @@ from django.utils.functional import curry
 from django.utils.text import get_text_list
 from django.utils.translation import ugettext as _
 from django.utils.encoding import force_unicode, smart_str
+from django.views.decorators.csrf import csrf_exempt
 
 from django.http import HttpResponse
 from django.core import serializers
@@ -30,7 +31,6 @@ class ModelApi(object):
     form = forms.ModelForm
     order_by = []
     list_per_page = 100
-    version = 'v1'
 
     def __init__(self, model, api_site):
         self.model = model
@@ -225,6 +225,7 @@ class ModelApi(object):
     def delete_model(self, request, obj):
         obj.delete()
 
+    @csrf_exempt
     def changelist_view(self, request, extra_context=None):
         try:
             json = {}
@@ -247,8 +248,10 @@ class ModelApi(object):
             json['list_per_page'] = list_per_page
 
             if json['count_queryset'] > (json['count_page']*json['page']):
-                if request.GET.get('page'):
-                    next_page = request.build_absolute_uri().replace('page=%s' % page, 'page=%s' % (page+1))
+                if page:
+                    next_page = request.build_absolute_uri().replace('&page=%s' % page, '&page=%s' % (page+1))
+                    if page > 1:
+                        json['previous_page'] = request.build_absolute_uri().replace('&page=%s' % page, '&page=%s' % (page-1))
                 else:
                     next_page = "%s%s" % (request.build_absolute_uri(), '&page=2')
                 json['next_page'] = next_page
@@ -268,13 +271,14 @@ class ModelApi(object):
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
     
+    @csrf_exempt
     def class_view(self, request, extra_context=None):
         try:
             json = {}
 
             opts = self.model._meta
             app_label = opts.app_label
-            if not self.has_add_permission(request):
+            if not self.has_add_permission(request) and not self.has_change_permission(request):
                 raise PermissionDenied
 
             json['model'] = "%s.%s" % (self.opts.app_label, self.opts.module_name)
@@ -307,7 +311,7 @@ class ModelApi(object):
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
 
-
+    @csrf_exempt
     def add_view(self, request, extra_context=None):
         try:
             model = self.model
@@ -343,7 +347,7 @@ class ModelApi(object):
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
             
-
+    @csrf_exempt
     def change_view(self, request, object_id, extra_context=None):
         try:
             model = self.model
@@ -385,7 +389,7 @@ class ModelApi(object):
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
             
-
+    @csrf_exempt
     def delete_view(self, request, object_id, extra_context=None):
         try:
             opts = self.model._meta
