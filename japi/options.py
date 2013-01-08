@@ -28,6 +28,7 @@ class ModelApi(object):
     
     fields = None
     exclude = []
+    readonly_fields = []
     form = forms.ModelForm
     order_by = []
     list_per_page = 100
@@ -46,12 +47,22 @@ class ModelApi(object):
             else:
                 fields = request.GET.get('fields').split(',')
         elif self.fields:
-            fields = self.fields
+            fields = list(self.fields)
         else:
             lists = self.opts.local_many_to_many+self.opts.fields
             fields = [field.name for field in lists]
-        for exclude in self.exclude: fields.remove(exclude)
         return fields
+
+    def get_editables_fields(self, request):
+        fields = self.get_fields(request)
+        for field in self.get_readonly_fields(request):
+            fields.remove(field)
+        for field in self.exclude:
+            fields.remove(field)
+        return fields
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.readonly_fields
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         request = kwargs.pop("request", None)
@@ -162,9 +173,19 @@ class ModelApi(object):
         }
 
     def get_form(self, request, obj=None, **kwargs):
+
+        if self.exclude is None:
+            exclude = []
+        else:
+            exclude = list(self.exclude)
+        exclude.extend(kwargs.get("exclude", []))
+        exclude.extend(self.get_readonly_fields(request, obj))
+        exclude = exclude or None
+
         defaults = {
             "form": self.form,
             "fields": self.get_fields(request),
+            "exclude": exclude,
             "formfield_callback": curry(self.formfield_for_dbfield, request=request),
         }
         defaults.update(kwargs)
@@ -221,6 +242,7 @@ class ModelApi(object):
 
     def save_model(self, request, obj, form, change):
         obj.save()
+        form.save_m2m()
 
     def delete_model(self, request, obj):
         obj.delete()
@@ -237,6 +259,7 @@ class ModelApi(object):
 
             queryset = self.queryset(request)
 
+            json['status'] = True
             json['count_queryset'] = len(queryset)
             #Pagination
             page = int(request.GET.get('page', 1))
@@ -267,7 +290,9 @@ class ModelApi(object):
         
         except Exception as error:
             json = {
-                'error': { type(error).__name__: error.message, }
+                'status': False,
+                'error': type(error).__name__,
+                'error_message': error.message,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
     
@@ -282,8 +307,9 @@ class ModelApi(object):
                 raise PermissionDenied
 
             json['model'] = "%s.%s" % (self.opts.app_label, self.opts.module_name)
+            json['status'] = True
             json['fields'] = {}
-            for field in self.get_fields(request):
+            for field in self.get_editables_fields(request):
                 field_object = self.opts.get_field(field)
                 attrs = {}
                 attrs['type'] = type(field_object).__name__
@@ -307,7 +333,9 @@ class ModelApi(object):
 
         except Exception as error:
             json = {
-                'error': { type(error).__name__: error.message, }
+                'status': False,
+                'error': type(error).__name__,
+                'error_message': error.message,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
 
@@ -329,6 +357,7 @@ class ModelApi(object):
                     self.log_addition(request, new_object)
 
                     json = {}
+                    json['status'] = True
                     json['queryset'] = []
                     for query in [new_object, ]:
                         new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
@@ -343,7 +372,9 @@ class ModelApi(object):
                 raise HttpError('POST request required.')
         except Exception as error:
             json = {
-                'error': { type(error).__name__: error.message, }
+                'status': False,
+                'error': type(error).__name__,
+                'error_message': error.message,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
             
@@ -371,6 +402,7 @@ class ModelApi(object):
                     self.log_change(request, obj, change_message)
 
                     json = {}
+                    json['status'] = True
                     json['queryset'] = []
                     for query in [obj, ]:
                         new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
@@ -385,7 +417,9 @@ class ModelApi(object):
                 raise HttpError('POST request required.')
         except Exception as error:
             json = {
-                'error': { type(error).__name__: error.message, }
+                'status': False,
+                'error': type(error).__name__,
+                'error_message': error.message,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
             
@@ -421,9 +455,11 @@ class ModelApi(object):
             if perms_needed or protected:
                 raise PermissionDenied("Cannot delete '%(name)s' with primary key %(key)r.") % {"name": object_name, "key": escape(object_id)}
             else:
-                json = {"sucess": "Object '%(name)s' with primary key %(key)r deleted." % {"name": object_name, "key": escape(object_id)}, }
+                json = {"status": True, "sucess": "Object '%(name)s' with primary key %(key)r deleted." % {"name": object_name, "key": escape(object_id)}, }
         except Exception as error:
             json = {
-                'error': { type(error).__name__: error.message, }
+                'status': False,
+                'error': type(error).__name__,
+                'error_message': error.message,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')

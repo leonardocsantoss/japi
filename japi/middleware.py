@@ -24,7 +24,7 @@ class ApiAuth(object):
                     usertoken = UserToken.objects.get(token=request.REQUEST.get('token'))
                     if usertoken.ip != request.META.get('REMOTE_ADDR'):
                         raise InvalidToken(u'Invalid token for this id, login again.')
-                except:
+                except UserToken.DoesNotExist:
                     raise TokenNotExists(u'Token not exists, login again.')
 
                 if usertoken.is_expired():
@@ -35,6 +35,8 @@ class ApiAuth(object):
                 
         except Exception as error:
             json = {
-                'error': { type(error).__name__: error.message, }
+                'status': False,
+                'error': type(error).__name__,
+                'error_message': error.message,
             }
             return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')

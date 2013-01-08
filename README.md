@@ -65,6 +65,7 @@ Django application for providing JSON API, based on the Django admin interface.
 
     fields = None
     exclude = []
+    readonly_fields = []
     form = forms.ModelForm
     order_by = []
     list_per_page = 100
