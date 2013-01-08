@@ -136,4 +136,4 @@ Django application for providing JSON API, based on the Django admin interface.
 
 7- JSON doc. You send a GET request to:
 
-    /api/v1/
+    /api/
