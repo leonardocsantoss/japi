@@ -122,7 +122,7 @@ Django application for providing JSON API, based on the Django admin interface.
 
 3.3- You can use a complex query. For example, get a objects that first_name=leonardo and exclude last_name=costa.
 
-Ex.: http://127.0.0.1:8000/api/my_app/model1/?first_name=leonardo&exclude__last_name=costa
+    Ex.: http://127.0.0.1:8000/api/my_app/model1/?first_name=leonardo&exclude__last_name=costa
 
 
 4- Add model. You send a POST request containing all atributes to:
