@@ -7,11 +7,11 @@ from models import UserToken
 
 class AdminUserToken(admin.ModelAdmin):
 
-    list_display = ("user", "token", "ip", "date_created", "is_expired", "_actions", )
+    list_display = ("user", "token", "date_created", "_actions", )
     save_on_top = True
 
     fieldsets = [
-        (_(u"UserToken API"),                   {'fields' : ("user", "token", "ip", "date_created",), }, ),
+        (_(u"UserToken API"),                   {'fields' : ("user", "token", "date_created",), }, ),
     ]
 
 admin.site.register(UserToken, AdminUserToken)

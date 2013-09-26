@@ -1,9 +1,11 @@
 # -*- coding:utf-8 -*-
 from django.http import HttpResponse
 from django.utils import simplejson
+from django.contrib.auth import login as auth_login
 
 from models import UserToken
 from datetime import datetime
+
 
 
 class TokenExpired(Exception):
@@ -22,16 +24,12 @@ class ApiAuth(object):
             if request.REQUEST.get('token'):
                 try: 
                     usertoken = UserToken.objects.get(token=request.REQUEST.get('token'))
-                    if usertoken.ip != request.META.get('REMOTE_ADDR'):
-                        raise InvalidToken(u'Invalid token for this id, login again.')
                 except UserToken.DoesNotExist:
                     raise TokenNotExists(u'Token not exists, login again.')
-
-                if usertoken.is_expired():
-                    raise TokenExpired(u'Token has expired, login again.')
                 usertoken.date_created = datetime.now()
                 usertoken.save()
-                request.__class__.user = usertoken.user
+                usertoken.user.backend='django.contrib.auth.backends.ModelBackend'
+                auth_login(request, usertoken.user)
                 
         except Exception as error:
             json = {

@@ -77,6 +77,9 @@ class ApiSite(object):
     def has_change_permission(self, request, opts):
         return request.user.has_perm(opts.app_label + '.' + opts.get_change_permission())
 
+    def has_changelist_permission(self, request, opts):
+        return request.user.has_perm(opts.app_label + '.' + opts.get_change_permission().replace('change', 'changelist'))
+
     def has_delete_permission(self, request, opts):
         return request.user.has_perm(opts.app_label + '.' + opts.get_delete_permission())
 
@@ -115,10 +118,7 @@ class ApiSite(object):
             if not user:
                 raise UserNotExists(_('Invalid username or password.'))
 
-            try: UserToken.objects.get(user=user).delete()
-            except: pass
-            
-            usertoken = UserToken.objects.create(user=user, ip=request.META.get('REMOTE_ADDR'))
+            usertoken = UserToken.objects.create(user=user)
 
             json = simplejson.loads(serializers.serialize('json', [usertoken, ], ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
 
@@ -136,7 +136,7 @@ class ApiSite(object):
                 for model, model_admin in self._registry.iteritems():
                     opts = model._meta
                     model_name = '%s.%s' % (opts.app_label, opts.module_name)
-                    if self.has_add_permission(request, opts) or self.has_change_permission(request, opts) or self.has_delete_permission(request, opts):
+                    if self.has_add_permission(request, opts) or self.has_change_permission(request, opts) or self.has_delete_permission(request, opts) or self.has_changelist_permission(request, opts):
                         json[model_name] = {}
                         json[model_name]['class'] = {
                             'url': '%s/api/%s/%s/class/' % (get_host(request), opts.app_label, opts.module_name),
@@ -160,12 +160,12 @@ class ApiSite(object):
                             }
                         if self.has_delete_permission(request, opts):
                             json[model_name]['delete'] = {
-                                'url': '%s/api/%s/%sOBJECT_ID/delete/' % (get_host(request), opts.app_label, opts.module_name),
+                                'url': '%s/api/%s/%s/OBJECT_ID/delete/' % (get_host(request), opts.app_label, opts.module_name),
                                 'method': ['GET', 'POST'],
                                 'require': ['token', ],
                                 'return': 'message',
                             }
-                        if self.has_change_permission(request, opts):
+                        if self.has_changelist_permission(request, opts):
                             json[model_name]['list'] = {
                                 'url': '%s/api/%s/%s/' % (get_host(request), opts.app_label, opts.module_name),
                                 'method': ['GET'],

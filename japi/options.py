@@ -12,6 +12,7 @@ from django.utils.text import get_text_list
 from django.utils.translation import ugettext as _
 from django.utils.encoding import force_unicode, smart_str
 from django.views.decorators.csrf import csrf_exempt
+import operator
 
 from django.http import HttpResponse
 from django.core import serializers
@@ -29,23 +30,23 @@ class ModelApi(object):
     fields = None
     exclude = []
     readonly_fields = []
+    search_fields = []
     form = forms.ModelForm
     order_by = []
-    list_per_page = 100
+    list_per_page = 500
 
     def __init__(self, model, api_site):
         self.model = model
         self.opts = model._meta
         self.api_site = api_site
-        self.order_by = model._meta.ordering or []
         super(ModelApi, self).__init__()
 
     def get_fields(self, request):
-        if request.GET.get('fields'):
+        if request.REQUEST.get('fields'):
             if self.fields:
-                fields = [field for field in request.GET.get('fields').split(',') if field in self.fields]
+                fields = [field for field in request.REQUEST.get('fields').split(',') if field in self.fields]
             else:
-                fields = request.GET.get('fields').split(',')
+                fields = request.REQUEST.get('fields').split(',')
         elif self.fields:
             fields = list(self.fields)
         else:
@@ -100,23 +101,59 @@ class ModelApi(object):
         if 'list_per_page' in params.keys(): del params['list_per_page']
         if 'page' in params.keys(): del params['page']
         if 'token' in params.keys(): del params['token']
+        if 'q' in params.keys(): del params['q']
+
+        exclude = {}
         for key, value in params.items():
-            if not isinstance(key, str):
-                del params[key]
-                params[smart_str(key)] = value
+            if key.startswith('exclude__'):
+                if not isinstance(key, str):
+                    del params[key]
+                    exclude[smart_str(key).replace('exclude__', '')] = value
 
-            if key.endswith('__in'):
-                value = value.split(',')
-                params[key] = value
+                if key.endswith('__in'):
+                    value = value.split(',')
+                    exclude[key.replace('exclude__', '')] = value
 
-            if key.endswith('__isnull'):
-                if value.lower() in ('', 'false'): value = False
-                else: value = True
-                params[key] = value
-        qs = qs.filter(**params)
+                if key.endswith('__isnull'):
+                    if value.lower() in ('', 'false'): value = False
+                    else: value = True
+                    exclude[key.replace('exclude__', '')] = value
+            else:
+                if not isinstance(key, str):
+                    del params[key]
+                    params[smart_str(key)] = value
 
-        order_by = request.GET.get('order_by').split(',') if request.GET.get('order_by') else self.order_by
+                if key.endswith('__in'):
+                    value = value.split(',')
+                    params[key] = value
+
+                if key.endswith('__isnull'):
+                    if value.lower() in ('', 'false'): value = False
+                    else: value = True
+                    params[key] = value
+
+        qs = qs.filter(**params).exclude(**exclude)
+
+
+        def construct_search(field_name):
+            if field_name.startswith('^'):
+                return "%s__istartswith" % field_name[1:]
+            elif field_name.startswith('='):
+                return "%s__iexact" % field_name[1:]
+            elif field_name.startswith('@'):
+                return "%s__search" % field_name[1:]
+            else:
+                return "%s__icontains" % field_name
+
+        if request.GET.get('q'):
+            orm_lookups = [construct_search(str(search_field)) for search_field in self.search_fields]
+            for bit in request.GET.get('q').split():
+                or_queries = [models.Q(**{orm_lookup: bit}) for orm_lookup in orm_lookups]
+                qs = qs.filter(reduce(operator.or_, or_queries))
+
+        order_by = request.GET.get('order_by', u",".join(self.order_by)).split(',')
         qs = qs.order_by(*order_by)
+
         return qs
 
     def get_urls(self):
@@ -161,6 +198,10 @@ class ModelApi(object):
         opts = self.opts
         return request.user.has_perm(opts.app_label + '.' + opts.get_change_permission())
 
+    def has_changelist_permission(self, request, obj=None):
+        opts = self.opts
+        return request.user.has_perm(opts.app_label + '.' + opts.get_change_permission().replace('change', 'changelist'))
+
     def has_delete_permission(self, request, obj=None):
         opts = self.opts
         return request.user.has_perm(opts.app_label + '.' + opts.get_delete_permission())
@@ -169,6 +210,7 @@ class ModelApi(object):
         return {
             'add': self.has_add_permission(request),
             'change': self.has_change_permission(request),
+            'changelist': self.has_changelist_permission(request),
             'delete': self.has_delete_permission(request),
         }
 
@@ -254,16 +296,18 @@ class ModelApi(object):
 
             opts = self.model._meta
             app_label = opts.app_label
-            if not self.has_change_permission(request, None):
+            if not self.has_changelist_permission(request, None):
                 raise PermissionDenied
 
             queryset = self.queryset(request)
+            order_by = request.REQUEST.get('order_by', u",".join(self.order_by)).split(',')
+            queryset = queryset.order_by(*order_by)
 
             json['status'] = True
             json['count_queryset'] = len(queryset)
             #Pagination
-            page = int(request.GET.get('page', 1))
-            list_per_page = int(request.GET.get('list_per_page', self.list_per_page))
+            page = int(request.REQUEST.get('page', 1))
+            list_per_page = int(request.REQUEST.get('list_per_page', self.list_per_page))
             queryset = queryset[list_per_page*(page-1):list_per_page*page]
 
             json['count_page'] = len(queryset)
@@ -281,18 +325,19 @@ class ModelApi(object):
             
             json['queryset'] = []
             for query in queryset:
-                new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
+                new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))['fields']
+                new_json['pk'] = query.pk
                 for field in self.get_fields(request):
                     if "instancemethod" in str(type(getattr(query, field))):
                         func = getattr(query, field)
-                        new_json['fields'][field] = func()
+                        new_json[field] = func()
                 json['queryset'].append(new_json)
         
         except Exception as error:
             json = {
                 'status': False,
                 'error': type(error).__name__,
-                'error_message': error.message,
+                'error_message': u'%s' % error,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
     
@@ -303,7 +348,7 @@ class ModelApi(object):
 
             opts = self.model._meta
             app_label = opts.app_label
-            if not self.has_add_permission(request) and not self.has_change_permission(request):
+            if not self.has_add_permission(request) and not self.has_change_permission(request) and not self.has_changelist_permission(request):
                 raise PermissionDenied
 
             json['model'] = "%s.%s" % (self.opts.app_label, self.opts.module_name)
@@ -335,7 +380,7 @@ class ModelApi(object):
             json = {
                 'status': False,
                 'error': type(error).__name__,
-                'error_message': error.message,
+                'error_message': u'%s' % error,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
 
@@ -349,32 +394,30 @@ class ModelApi(object):
                 raise PermissionDenied
 
             ModelForm = self.get_form(request)
-            if request.method == 'POST':
-                form = ModelForm(request.POST, request.FILES)
-                if form.is_valid():
-                    new_object = self.save_form(request, form, change=False)
-                    self.save_model(request, new_object, form, change=False)
-                    self.log_addition(request, new_object)
+            form = ModelForm(request.POST, request.FILES)
+            if form.is_valid():
+                new_object = self.save_form(request, form, change=False)
+                self.save_model(request, new_object, form, change=False)
+                self.log_addition(request, new_object)
 
-                    json = {}
-                    json['status'] = True
-                    json['queryset'] = []
-                    for query in [new_object, ]:
-                        new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
-                        for field in self.get_fields(request):
-                            if "instancemethod" in str(type(getattr(query, field))):
-                                func = getattr(query, field)
-                                new_json['fields'][field] = func()
-                        json['queryset'].append(new_json)
-                else:
-                    raise SaveModelError(dict(form.errors))
+                json = {}
+                json['status'] = True
+                json['queryset'] = []
+                for query in [new_object, ]:
+                    new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))['fields']
+                    new_json['pk'] = query.pk
+                    for field in self.get_fields(request):
+                        if "instancemethod" in str(type(getattr(query, field))):
+                            func = getattr(query, field)
+                            new_json[field] = func()
+                    json['queryset'].append(new_json)
             else:
-                raise HttpError('POST request required.')
+                raise SaveModelError(dict(form.errors))
         except Exception as error:
             json = {
                 'status': False,
                 'error': type(error).__name__,
-                'error_message': error.message,
+                'error_message': u'%s' % error,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
             
@@ -393,33 +436,31 @@ class ModelApi(object):
                 raise Http404(_('%(name)s object with primary key %(key)r does not exist.') % {'name': force_unicode(opts.verbose_name), 'key': escape(object_id)})
 
             ModelForm = self.get_form(request, obj)
-            if request.method == 'POST':
-                form = ModelForm(dict(model_to_dict(obj).items()+request.POST.items()), request.FILES, instance=obj)
-                if form.is_valid():
-                    obj = self.save_form(request, form, change=True)
-                    self.save_model(request, obj, form, change=False)
-                    change_message = self.construct_change_message(request, form)
-                    self.log_change(request, obj, change_message)
+            form = ModelForm(dict(model_to_dict(obj).items()+request.POST.items()), request.FILES, instance=obj)
+            if form.is_valid():
+                obj = self.save_form(request, form, change=True)
+                self.save_model(request, obj, form, change=False)
+                change_message = self.construct_change_message(request, form)
+                self.log_change(request, obj, change_message)
 
-                    json = {}
-                    json['status'] = True
-                    json['queryset'] = []
-                    for query in [obj, ]:
-                        new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))
-                        for field in self.get_fields(request):
-                            if "instancemethod" in str(type(getattr(query, field))):
-                                func = getattr(query, field)
-                                new_json['fields'][field] = func()
-                        json['queryset'].append(new_json)
-                else:
-                    raise SaveModelError(dict(form.errors))
+                json = {}
+                json['status'] = True
+                json['queryset'] = []
+                for query in [obj, ]:
+                    new_json = simplejson.loads(serializers.serialize('json', [query, ], fields=self.get_fields(request), ensure_ascii=False, use_natural_keys=True)[1:][:-1].encode("utf8"))['fields']
+                    new_json['pk'] = query.pk
+                    for field in self.get_fields(request):
+                        if "instancemethod" in str(type(getattr(query, field))):
+                            func = getattr(query, field)
+                            new_json[field] = func()
+                    json['queryset'].append(new_json)
             else:
-                raise HttpError('POST request required.')
+                raise SaveModelError(dict(form.errors))
         except Exception as error:
             json = {
                 'status': False,
                 'error': type(error).__name__,
-                'error_message': error.message,
+                'error_message': u'%s' % error,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
             
@@ -460,6 +501,6 @@ class ModelApi(object):
             json = {
                 'status': False,
                 'error': type(error).__name__,
-                'error_message': error.message,
+                'error_message': u'%s' % error,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')

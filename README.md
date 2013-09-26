@@ -66,6 +66,7 @@ Django application for providing JSON API, based on the Django admin interface.
     fields = None
     exclude = []
     readonly_fields = []
+    search_fields = []
     form = forms.ModelForm
     order_by = []
     list_per_page = 100
@@ -111,12 +112,17 @@ Django application for providing JSON API, based on the Django admin interface.
     Ex.: http://127.0.0.1:8000/api/my_app/model1/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P
 
 
-3.1- You can make some queries, passing them GET.
+3.1- You can make some queries, passing them GET. Include q for search.
 
     Ex.: http://127.0.0.1:8000/api/my_app/model1/?token=7sThjpKyXdqOFC5rHzrD2TQSpH1f3P&name=Leonardo
 
 
 3.2- You can also set the number of paging models (list_per_page), order(order_by), the page(page) or fields(fields)
+
+
+3.3- You can use a complex query. For example, get a objects that first_name=leonardo and exclude last_name=costa.
+
+Ex.: http://127.0.0.1:8000/api/my_app/model1/?first_name=leonardo&exclude__last_name=costa
 
 
 4- Add model. You send a POST request containing all atributes to:
