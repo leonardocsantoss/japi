@@ -5,7 +5,10 @@ from django.contrib.admin.util import unquote, get_deleted_objects
 from django.core.exceptions import PermissionDenied
 from django.db import models, router
 from django.http import Http404, HttpResponse
-from django.utils.functional import update_wrapper
+try:
+    from django.utils.functional import update_wrapper
+except ImportError:
+    from functools import update_wrapper
 from django.utils.html import escape
 from django.utils.functional import curry
 from django.utils.text import get_text_list
@@ -34,12 +37,28 @@ class ModelApi(object):
     form = forms.ModelForm
     order_by = []
     list_per_page = 500
+    inlines = []
 
     def __init__(self, model, api_site):
         self.model = model
         self.opts = model._meta
         self.api_site = api_site
         super(ModelApi, self).__init__()
+        
+    def get_inline_instances(self, request, obj=None):
+        inline_instances = []
+        for inline_class in self.inlines:
+            inline = inline_class(self.model, self.admin_site)
+            if request:
+                if not (inline.has_add_permission(request) or
+                        inline.has_change_permission(request, obj) or
+                        inline.has_delete_permission(request, obj)):
+                    continue
+                if not inline.has_add_permission(request):
+                    inline.max_num = 0
+            inline_instances.append(inline)
+
+        return inline_instances
 
     def get_fields(self, request):
         if request.REQUEST.get('fields'):
@@ -504,3 +523,7 @@ class ModelApi(object):
                 'error_message': u'%s' % error,
             }
         return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
+    
+    
+class InlineModelApi(object):
+    pass

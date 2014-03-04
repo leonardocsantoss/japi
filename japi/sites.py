@@ -3,7 +3,10 @@ from japi.options import ModelApi
 from japi.utils import get_host
 from django.views.decorators.csrf import csrf_protect
 from django.db.models.base import ModelBase
-from django.utils.functional import update_wrapper
+try:
+    from django.utils.functional import update_wrapper
+except ImportError:
+    from functools import update_wrapper
 from django.utils.translation import ugettext as _
 from django.views.decorators.cache import never_cache
 from django.core.exceptions import ImproperlyConfigured
@@ -84,7 +87,10 @@ class ApiSite(object):
         return request.user.has_perm(opts.app_label + '.' + opts.get_delete_permission())
 
     def get_urls(self):
-        from django.conf.urls.defaults import patterns, url, include
+        try:
+            from django.conf.urls.defaults import patterns, url, include
+        except ImportError:
+            from django.conf.urls import patterns, url, include
 
         def wrap(view, cacheable=False):
             def wrapper(*args, **kwargs):
