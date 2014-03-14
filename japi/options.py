@@ -169,14 +169,21 @@ class ModelApi(object):
             for bit in request.GET.get('q').split():
                 or_queries = [models.Q(**{orm_lookup: bit}) for orm_lookup in orm_lookups]
                 qs = qs.filter(reduce(operator.or_, or_queries))
+        
 
-        order_by = request.GET.get('order_by', u",".join(self.order_by)).split(',')
-        qs = qs.order_by(*order_by)
+        order_by = request.GET.get('order_by', u",".join(self.order_by))
+        
+        if order_by:
+            order_by = order_by.split(',')
+            qs = qs.order_by(*order_by)
 
         return qs
 
     def get_urls(self):
-        from django.conf.urls.defaults import patterns, url
+        try:
+            from django.conf.urls import patterns, url
+        except ImportError:
+            from django.conf.urls.defaults import patterns, url
 
         def wrap(view):
             def wrapper(*args, **kwargs):
@@ -319,8 +326,6 @@ class ModelApi(object):
                 raise PermissionDenied
 
             queryset = self.queryset(request)
-            order_by = request.REQUEST.get('order_by', u",".join(self.order_by)).split(',')
-            queryset = queryset.order_by(*order_by)
 
             json['status'] = True
             json['count_queryset'] = len(queryset)
