@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from japi.options import ModelApi
 from japi.utils import get_host
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from django.db.models.base import ModelBase
 try:
     from django.utils.functional import update_wrapper
@@ -116,6 +116,7 @@ class ApiSite(object):
         return self.get_urls(), self.app_name, self.name
 
     @never_cache
+    @csrf_exempt
     def auth(self, request):
         try:
             username = request.REQUEST.get('username')
@@ -132,7 +133,7 @@ class ApiSite(object):
             json = {
                 'error': { type(error).__name__: error.message, }
             }
-        return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
+        return HttpResponse(simplejson.dumps(json, ensure_ascii=False), content_type='text/javascript; charset=utf-8')
 
 
     def docs(self, request):
@@ -189,7 +190,7 @@ class ApiSite(object):
             json = {
                 'error': { type(error).__name__: error.message, }
             }
-        return HttpResponse(simplejson.dumps(json, ensure_ascii=False), mimetype='text/javascript; charset=utf-8')
+        return HttpResponse(simplejson.dumps(json, ensure_ascii=False), content_type='text/javascript; charset=utf-8')
 
 
 site = ApiSite()

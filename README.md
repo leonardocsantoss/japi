@@ -137,7 +137,7 @@ Django application for providing JSON API, based on the Django admin interface.
 
 6- Delete model. You send a GET request to:
 
-    /api/VERSION_API/APP_NAME/MODEL_NAME/OBJECT_ID/delete/
+    /api/APP_NAME/MODEL_NAME/OBJECT_ID/delete/
 
 
 7- JSON doc. You send a GET request to:
